@@ -383,6 +383,28 @@ int config_hci_snoop_log(uint8_t enable)
     return btif_config_hci_snoop_log(enable);
 }
 
+int vendor_specific_command(uint16_t opcode, uint8_t* buf, uint8_t len)
+{
+    ALOGI("vendor_specific_command");
+
+    /* sanity check */
+    if (interface_ready() == FALSE)
+        return BT_STATUS_NOT_READY;
+
+    return btif_vendor_specific_command(opcode, buf, len);
+}
+
+int enable_vendor_specific_events(uint8_t enable)
+{
+    ALOGI("enable_vendor_specific_callbacks");
+
+    /* sanity check */
+    if (interface_ready() == FALSE)
+        return BT_STATUS_NOT_READY;
+
+    return btif_enable_vendor_specific_events(enable);
+}
+
 static const bt_interface_t bluetoothInterface = {
     sizeof(bluetoothInterface),
     init,
@@ -412,7 +434,9 @@ static const bt_interface_t bluetoothInterface = {
 #else
     NULL,
 #endif
-    config_hci_snoop_log
+    config_hci_snoop_log,
+    vendor_specific_command,
+    enable_vendor_specific_events,
 };
 
 const bt_interface_t* bluetooth__get_bluetooth_interface ()

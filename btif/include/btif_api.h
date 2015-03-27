@@ -346,4 +346,27 @@ bt_status_t btif_le_test_mode(uint16_t opcode, uint8_t *buf, uint8_t len);
 **
 *******************************************************************************/
 bt_status_t btif_config_hci_snoop_log(uint8_t enable);
+
+/*******************************************************************************
+**
+** Function         btif_vendor_specific_command
+**
+** Description      Sends an HCI Vendor specific command to the controller
+**
+** Returns          BT_STATUS_SUCCESS on success
+**
+*******************************************************************************/
+bt_status_t btif_vendor_specific_command(uint16_t opcode, uint8_t *buf, uint8_t len);
+
+/*******************************************************************************
+**
+** Function         btif_enable_vendor_specific_events
+**
+** Description      Enables receiving HCI Vendor Specific events.
+**
+** Returns          BT_STATUS_SUCCESS on success
+**
+*******************************************************************************/
+bt_status_t btif_enable_vendor_specific_events(uint8_t enable);
+
 #endif /* BTIF_API_H */

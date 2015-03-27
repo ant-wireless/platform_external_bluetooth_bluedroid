@@ -1477,3 +1477,141 @@ bt_status_t btif_config_hci_snoop_log(uint8_t enable)
              btif_core_state == BTIF_CORE_STATE_DISABLED);
     return BT_STATUS_SUCCESS;
 }
+
+/*******************************************************************************
+**
+** Function         btif_vendor_command_callout
+**
+** Description      Does the callout for any command completes received in
+**                  response to vendor specific commands.
+**
+** Returns          None
+**
+*******************************************************************************/
+static void btif_vendor_specific_command_callout(UINT16 event, char *p_params)
+{
+    BTIF_TRACE_EVENT("Execute VS command complete callout.");
+    tBTM_VSC_CMPL *p = (tBTM_VSC_CMPL*) p_params;
+    HAL_CBACK(bt_hal_cbacks, vendor_specific_command_complete_cb, p->opcode, p->p_param_buf,
+              p->param_len);
+    GKI_freebuf(p->p_param_buf);
+}
+
+/*******************************************************************************
+**
+** Function         btif_vendor_specific_copy_cb
+**
+** Description      Switch context callback function to perform the deep copy
+**                  for vendor specific command complete being sent
+**
+** Returns          None
+**
+*******************************************************************************/
+static void btif_vendor_specific_copy_cb(UINT16 event, char *p_new_buf, char *p_old_buf)
+{
+    tBTM_VSC_CMPL *new_msg = (tBTM_VSC_CMPL*)p_new_buf;
+    tBTM_VSC_CMPL *old_msg = (tBTM_VSC_CMPL*)p_old_buf;
+
+    // shallow copy the struct
+    memcpy(new_msg, old_msg, sizeof(tBTM_VSC_CMPL));
+
+    // copy the parameters to a new buffer and point new struct to it
+    int param_buf_size = sizeof(uint8_t) * old_msg->param_len;
+    new_msg->p_param_buf = (uint8_t *) GKI_getbuf(param_buf_size);
+
+    if(new_msg->p_param_buf != NULL)
+    {
+        memcpy(new_msg->p_param_buf, old_msg->p_param_buf, param_buf_size);
+    }
+}
+
+/*******************************************************************************
+**
+** Function         btif_vendor_specific_command_cback
+**
+** Description      Callback invoked on completion of vendor specific command
+**
+** Returns          None
+**
+*******************************************************************************/
+static void btif_vendor_specific_command_cback(tBTM_VSC_CMPL *p)
+{
+    BTIF_TRACE_DEBUG("%s: transfer context to send vendor specific command", __FUNCTION__);
+
+    btif_transfer_context(
+            btif_vendor_specific_command_callout,
+            0, // Event not currently used
+            (char*) p,
+            sizeof(tBTM_VSC_CMPL),
+            btif_vendor_specific_copy_cb);
+}
+
+/*****************************************************************************
+**
+** Function       btif_vendor_specific_command
+**
+** Description    Send an HCI Vendor specific command to the controller
+**
+** Returns        BT_STATUS_SUCCESS on success
+**
+*****************************************************************************/
+bt_status_t btif_vendor_specific_command(uint16_t opcode, uint8_t *buf, uint8_t len)
+{
+    tBTM_STATUS result = BTM_VendorSpecificCommand(opcode, len, buf, btif_vendor_specific_command_cback);
+    if(result == BTM_CMD_STARTED) {
+        return BT_STATUS_SUCCESS;
+    } else {
+        return BT_STATUS_FAIL;
+    }
+}
+
+/*****************************************************************************
+**
+** Function       btif_vendor_specific_event_callout
+**
+** Description    Performs the callout of HAL for any received VS events.
+**
+** Returns        None
+**
+*****************************************************************************/
+static void btif_vendor_specific_event_callout(UINT16 event, char *data)
+{
+    /* Buffer length was marshalled through the event parameter. */
+    HAL_CBACK(bt_hal_cbacks, vendor_specific_event_cb, (uint8_t*)data, (uint8_t)event);
+}
+
+/*****************************************************************************
+**
+** Function       btif_vendor_specific_event_callback
+**
+** Description    Called gtom BTM to notify us of any received VS events
+**
+** Returns        None
+**
+*****************************************************************************/
+static void btif_vendor_specific_event_callback(uint8_t len, uint8_t *data)
+{
+    BTIF_TRACE_DEBUG("%s: transfer context to send vendor specific event", __FUNCTION__);
+
+    /* Marshal the length using the event number. */
+    btif_transfer_context(btif_vendor_specific_event_callout, len, (char*)data, len, NULL);
+}
+
+/*******************************************************************************
+**
+** Function         btif_enable_vendor_specific_events
+**
+** Description      Enables receiving HCI Vendor Specific events.
+**
+** Returns          BT_STATUS_SUCCESS on success
+**
+*******************************************************************************/
+bt_status_t btif_enable_vendor_specific_events(uint8_t enable)
+{
+    tBTM_STATUS result = BTM_RegisterForVSEvents(btif_vendor_specific_event_callback, enable);
+    if (result == BTM_SUCCESS) {
+        return BT_STATUS_SUCCESS;
+    } else {
+        return BT_STATUS_NOMEM;
+    }
+}
